@@ -8,7 +8,7 @@ import type { Mood } from "@/types/interfaces/Mood";
 import { randomlyGeneratedMockMoods } from "@/mocks/randomlyGeneratedMockMoods";
 
 export default function Home() {
-  const [moods, setMoods] = useState<Mood[]>(randomlyGeneratedMockMoods);
+  const [moods, setMoods] = useState<Mood[]>(randomlyGeneratedMockMoods(5000));
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleAddMood = (mood: number, lat: number, lng: number) => {
