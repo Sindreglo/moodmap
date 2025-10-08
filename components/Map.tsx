@@ -69,11 +69,16 @@ export default function Map({ moods }: MapProps) {
           type: "geojson",
           data: geojson,
           cluster: true,
-          clusterMaxZoom: 14, // Max zoom to cluster points on
-          clusterRadius: 40, // Radius of each cluster when clustering points (defaults to 50)
+          clusterMaxZoom: 14,
+          clusterRadius: 40,
+          // Standard Mapbox syntax: each property is an accumulating expression (no explicit initial needed)
+          clusterProperties: {
+            sum: ["+", ["get", "mood"]], // running sum of mood
+            count: ["+", 1], // running count of points
+          },
         });
 
-        // Cluster circles
+        // Cluster circles with color based on average mood (sum/count)
         map.current?.addLayer({
           id: "clusters",
           type: "circle",
@@ -82,12 +87,21 @@ export default function Map({ moods }: MapProps) {
           paint: {
             "circle-color": [
               "step",
-              ["get", "point_count"],
-              "#51bbd6",
-              10,
-              "#f1f075",
-              30,
-              "#f28cb1",
+              [
+                "case",
+                ["==", ["get", "count"], 0],
+                0,
+                ["/", ["get", "sum"], ["get", "count"]],
+              ],
+              "#e74c3c", // <2
+              2,
+              "#e67e22",
+              3,
+              "#f39c12",
+              4,
+              "#2ecc71",
+              5,
+              "#27ae60",
             ],
             "circle-radius": [
               "step",
@@ -103,14 +117,38 @@ export default function Map({ moods }: MapProps) {
           },
         });
 
-        // Cluster count labels
+        // Cluster label: show average mood (rounded) and count
         map.current?.addLayer({
           id: "cluster-count",
           type: "symbol",
           source: "moods",
           filter: ["has", "point_count"],
           layout: {
-            "text-field": "{point_count_abbreviated}",
+            // Format: avg (count)
+            "text-field": [
+              "format",
+              [
+                "to-string",
+                [
+                  "round",
+                  [
+                    "case",
+                    ["==", ["get", "count"], 0],
+                    0,
+                    ["/", ["get", "sum"], ["get", "count"]],
+                  ],
+                ],
+              ],
+              { "font-scale": 1.1 },
+              " ",
+              {},
+              "(",
+              { "font-scale": 0.9 },
+              ["to-string", ["get", "point_count_abbreviated"]],
+              { "font-scale": 0.9 },
+              ")",
+              { "font-scale": 0.9 },
+            ],
             "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
             "text-size": 14,
           },
