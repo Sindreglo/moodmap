@@ -1,29 +1,39 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import styles from './MoodModal.module.scss'
+import { useState } from "react";
+import styles from "./MoodModal.module.scss";
 
 interface MoodModalProps {
-  onClose: () => void
-  onSubmit: (mood: number, lat: number, lng: number) => void
+  onClose: () => void;
+  onSubmit: (mood: number, lat: number, lng: number) => void;
 }
 
-const moodEmojis = ['😢', '😕', '😐', '🙂', '😄']
-const moodLabels = ['Very Bad', 'Bad', 'Neutral', 'Good', 'Very Good']
+const moodEmojis = ["😢", "😕", "😐", "🙂", "😄"];
+const moodLabels = ["Very Bad", "Bad", "Neutral", "Good", "Very Good"];
 
 export default function MoodModal({ onClose, onSubmit }: MoodModalProps) {
-  const [selectedMood, setSelectedMood] = useState<number | null>(null)
+  const [selectedMood, setSelectedMood] = useState<number | null>(null);
 
   const handleSubmit = () => {
-    if (selectedMood === null) return
+    if (selectedMood === null) return;
 
-    // Get random coordinates for demo purposes
-    // In a real app, you might use geolocation or let users click on the map
-    const lat = (Math.random() - 0.5) * 160 // Range: -80 to 80
-    const lng = (Math.random() - 0.5) * 360 // Range: -180 to 180
-
-    onSubmit(selectedMood, lat, lng)
-  }
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          onSubmit(selectedMood, lat, lng);
+        },
+        () => {
+          alert(
+            "Could not get your location. Please enable location services and try again."
+          );
+        }
+      );
+    } else {
+      alert("Geolocation is not supported by your browser.");
+    }
+  };
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -31,7 +41,7 @@ export default function MoodModal({ onClose, onSubmit }: MoodModalProps) {
         <button className={styles.closeButton} onClick={onClose}>
           ×
         </button>
-        
+
         <h2>How are you feeling?</h2>
         <p className={styles.subtitle}>Select your current mood</p>
 
@@ -40,7 +50,7 @@ export default function MoodModal({ onClose, onSubmit }: MoodModalProps) {
             <button
               key={mood}
               className={`${styles.moodButton} ${
-                selectedMood === mood ? styles.selected : ''
+                selectedMood === mood ? styles.selected : ""
               }`}
               onClick={() => setSelectedMood(mood)}
             >
@@ -60,5 +70,5 @@ export default function MoodModal({ onClose, onSubmit }: MoodModalProps) {
         </button>
       </div>
     </div>
-  )
+  );
 }
