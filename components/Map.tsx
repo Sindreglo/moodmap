@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { Mood } from "@/app/page";
+import { Mood } from "@/types/interfaces/Mood";
 import styles from "./Map.module.scss";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
@@ -23,7 +23,6 @@ const moodColors: { [key: number]: string } = {
 export default function Map({ moods }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markers = useRef<mapboxgl.Marker[]>([]);
 
   // Initialize map
   useEffect(() => {
@@ -41,40 +40,91 @@ export default function Map({ moods }: MapProps) {
     };
   }, []);
 
-  // Update markers when moods change
+  // Add or update GeoJSON source and layer for moods
   useEffect(() => {
     if (!map.current) return;
 
-    // Remove existing markers
-    markers.current.forEach((marker) => marker.remove());
-    markers.current = [];
+    const geojson: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: moods.map((mood) => ({
+        type: "Feature",
+        properties: {
+          mood: mood.mood,
+          timestamp: mood.timestamp,
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [mood.lng, mood.lat],
+        },
+      })),
+    };
 
-    // Add new markers
-    moods.forEach((mood) => {
-      const el = document.createElement("div");
-      el.className = styles.marker;
-      el.style.backgroundColor = moodColors[mood.mood];
-      el.style.width = "20px";
-      el.style.height = "20px";
-      el.style.borderRadius = "50%";
-      el.style.border = "2px solid white";
-      el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
-      el.style.cursor = "pointer";
+    const addSourceAndLayer = () => {
+      if (map.current?.getSource("moods")) {
+        (map.current.getSource("moods") as mapboxgl.GeoJSONSource).setData(
+          geojson
+        );
+      } else {
+        map.current?.addSource("moods", {
+          type: "geojson",
+          data: geojson,
+        });
+        map.current?.addLayer({
+          id: "mood-points",
+          type: "circle",
+          source: "moods",
+          paint: {
+            "circle-radius": 10,
+            "circle-color": [
+              "match",
+              ["get", "mood"],
+              1,
+              "#e74c3c",
+              2,
+              "#e67e22",
+              3,
+              "#f39c12",
+              4,
+              "#2ecc71",
+              5,
+              "#27ae60",
+              "#888",
+            ],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#fff",
+          },
+        });
+      }
+    };
 
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([mood.lng, mood.lat])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 25 }).setHTML(`
-              <div style="padding: 5px;">
-                <strong>Mood: ${mood.mood}/5</strong><br/>
-                <small>${new Date(mood.timestamp).toLocaleString()}</small>
-              </div>
-            `)
+    if (map.current?.isStyleLoaded()) {
+      addSourceAndLayer();
+    } else {
+      map.current?.once("style.load", addSourceAndLayer);
+    }
+
+    // Popup on click
+    const onClick = (e: mapboxgl.MapLayerMouseEvent) => {
+      const feature = e.features && e.features[0];
+      if (!feature) return;
+      const { mood, timestamp } = feature.properties as any;
+      new mapboxgl.Popup()
+        .setLngLat((feature.geometry as any).coordinates)
+        .setHTML(
+          `<div style="padding: 5px;">
+            <strong>Mood: ${mood}/5</strong><br/>
+            <small>${new Date(Number(timestamp)).toLocaleString()}</small>
+          </div>`
         )
         .addTo(map.current!);
+    };
+    map.current.on("click", "mood-points", onClick);
 
-      markers.current.push(marker);
-    });
+    return () => {
+      if (!map.current) return;
+      map.current.off("click", "mood-points", onClick);
+      // Optionally remove layer/source if needed
+    };
   }, [moods]);
 
   return <div ref={mapContainer} className={styles.mapContainer} />;

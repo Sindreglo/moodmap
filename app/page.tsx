@@ -1,21 +1,14 @@
-'use client'
-
-import { useState } from 'react'
-import Map from '@/components/Map'
-import MoodModal from '@/components/MoodModal'
-import styles from './page.module.scss'
-
-export interface Mood {
-  id: string
-  mood: number
-  lat: number
-  lng: number
-  timestamp: number
-}
+"use client";
+import Map from "@/components/Map";
+import MoodModal from "@/components/MoodModal";
+import styles from "./page.module.scss";
+import { useState } from "react";
+import { mockMoods } from "@/mocks/mockMoods";
+import type { Mood } from "@/types/interfaces/Mood";
 
 export default function Home() {
-  const [moods, setMoods] = useState<Mood[]>([])
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [moods, setMoods] = useState<Mood[]>(mockMoods);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleAddMood = (mood: number, lat: number, lng: number) => {
     const newMood: Mood = {
@@ -24,10 +17,10 @@ export default function Home() {
       lat,
       lng,
       timestamp: Date.now(),
-    }
-    setMoods([...moods, newMood])
-    setIsModalOpen(false)
-  }
+    };
+    setMoods([...moods, newMood]);
+    setIsModalOpen(false);
+  };
 
   return (
     <main className={styles.main}>
@@ -35,8 +28,8 @@ export default function Home() {
         <h1>MoodMap</h1>
         <p>Share your mood with the world</p>
       </div>
-      
-      <button 
+
+      <button
         className={styles.addMoodButton}
         onClick={() => setIsModalOpen(true)}
       >
@@ -46,11 +39,11 @@ export default function Home() {
       <Map moods={moods} />
 
       {isModalOpen && (
-        <MoodModal 
+        <MoodModal
           onClose={() => setIsModalOpen(false)}
           onSubmit={handleAddMood}
         />
       )}
     </main>
-  )
+  );
 }
