@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { moodIconPaths } from "@/lib/moodIcons";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { Mood } from "@/types/interfaces/Mood";
@@ -69,8 +70,9 @@ export default function Map({ moods }: MapProps) {
           type: "geojson",
           data: geojson,
           cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: 40,
+          // Increased for stronger clustering
+          clusterMaxZoom: 16, // clusters persist to a higher zoom level
+          clusterRadius: 80, // larger radius groups more nearby points
           // Standard Mapbox syntax: each property is an accumulating expression (no explicit initial needed)
           clusterProperties: {
             sum: ["+", ["get", "mood"]], // running sum of mood
@@ -78,108 +80,93 @@ export default function Map({ moods }: MapProps) {
           },
         });
 
-        // Cluster circles with color based on average mood (sum/count)
-        map.current?.addLayer({
-          id: "clusters",
-          type: "circle",
-          source: "moods",
-          filter: ["has", "point_count"],
-          paint: {
-            "circle-color": [
-              "step",
-              [
-                "case",
-                ["==", ["get", "count"], 0],
-                0,
-                ["/", ["get", "sum"], ["get", "count"]],
-              ],
-              "#e74c3c", // <2
-              2,
-              "#e67e22",
-              3,
-              "#f39c12",
-              4,
-              "#2ecc71",
-              5,
-              "#27ae60",
-            ],
-            "circle-radius": [
-              "step",
-              ["get", "point_count"],
-              15,
-              10,
-              20,
-              30,
-              25,
-            ],
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#fff",
-          },
-        });
+        // Preload icons and then add symbol layers for clusters & unclustered points
+        const preloadIcons = async () => {
+          for (const [key, path] of Object.entries(moodIconPaths)) {
+            const id = `mood-icon-${key}`;
+            if (map.current && !map.current.hasImage(id)) {
+              await new Promise<void>((resolve, reject) => {
+                map.current!.loadImage(path, (err, image) => {
+                  if (err || !image) return reject(err);
+                  if (!map.current!.hasImage(id))
+                    map.current!.addImage(id, image, { pixelRatio: 2 });
+                  resolve();
+                });
+              });
+            }
+          }
+        };
 
-        // Cluster label: show average mood (rounded) and count
-        map.current?.addLayer({
-          id: "cluster-count",
-          type: "symbol",
-          source: "moods",
-          filter: ["has", "point_count"],
-          layout: {
-            // Format: avg (count)
-            "text-field": [
-              "format",
-              [
-                "to-string",
-                [
-                  "round",
+        preloadIcons().then(() => {
+          // Cluster layer (symbol) chooses icon by average mood
+          if (!map.current?.getLayer("clusters")) {
+            map.current?.addLayer({
+              id: "clusters",
+              type: "symbol",
+              source: "moods",
+              filter: ["has", "point_count"],
+              layout: {
+                "icon-image": [
+                  "concat",
+                  "mood-icon-",
                   [
-                    "case",
-                    ["==", ["get", "count"], 0],
-                    0,
-                    ["/", ["get", "sum"], ["get", "count"]],
+                    "to-string",
+                    [
+                      "max",
+                      1,
+                      [
+                        "min",
+                        5,
+                        [
+                          "round",
+                          [
+                            "case",
+                            ["==", ["get", "count"], 0],
+                            3,
+                            ["/", ["get", "sum"], ["get", "count"]],
+                          ],
+                        ],
+                      ],
+                    ],
                   ],
                 ],
-              ],
-              { "font-scale": 1.1 },
-              " ",
-              {},
-              "(",
-              { "font-scale": 0.9 },
-              ["to-string", ["get", "point_count_abbreviated"]],
-              { "font-scale": 0.9 },
-              ")",
-              { "font-scale": 0.9 },
-            ],
-            "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-            "text-size": 14,
-          },
-        });
-
-        // Unclustered points
-        map.current?.addLayer({
-          id: "mood-points",
-          type: "circle",
-          source: "moods",
-          filter: ["!has", "point_count"],
-          paint: {
-            "circle-radius": 10,
-            "circle-color": [
-              "match",
-              ["get", "mood"],
-              1,
-              "#e74c3c",
-              2,
-              "#e67e22",
-              3,
-              "#f39c12",
-              4,
-              "#2ecc71",
-              5,
-              "#27ae60",
-              "#888",
-            ],
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#fff",
-          },
+                "icon-size": [
+                  "interpolate",
+                  ["linear"],
+                  ["get", "point_count"],
+                  1,
+                  0.175,
+                  10,
+                  0.225,
+                  25,
+                  0.275,
+                  50,
+                  0.31,
+                  100,
+                  0.35,
+                ],
+                "icon-allow-overlap": true,
+              },
+            });
+          }
+          // Unclustered mood points
+          if (!map.current?.getLayer("mood-points")) {
+            map.current?.addLayer({
+              id: "mood-points",
+              type: "symbol",
+              source: "moods",
+              filter: ["!has", "point_count"],
+              layout: {
+                "icon-image": [
+                  "concat",
+                  "mood-icon-",
+                  ["to-string", ["get", "mood"]],
+                ],
+                "icon-size": 0.175,
+                "icon-allow-overlap": true,
+              },
+            });
+          }
         });
       }
     };
