@@ -68,11 +68,60 @@ export default function Map({ moods }: MapProps) {
         map.current?.addSource("moods", {
           type: "geojson",
           data: geojson,
+          cluster: true,
+          clusterMaxZoom: 14, // Max zoom to cluster points on
+          clusterRadius: 40, // Radius of each cluster when clustering points (defaults to 50)
         });
+
+        // Cluster circles
+        map.current?.addLayer({
+          id: "clusters",
+          type: "circle",
+          source: "moods",
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": [
+              "step",
+              ["get", "point_count"],
+              "#51bbd6",
+              10,
+              "#f1f075",
+              30,
+              "#f28cb1",
+            ],
+            "circle-radius": [
+              "step",
+              ["get", "point_count"],
+              15,
+              10,
+              20,
+              30,
+              25,
+            ],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#fff",
+          },
+        });
+
+        // Cluster count labels
+        map.current?.addLayer({
+          id: "cluster-count",
+          type: "symbol",
+          source: "moods",
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": "{point_count_abbreviated}",
+            "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+            "text-size": 14,
+          },
+        });
+
+        // Unclustered points
         map.current?.addLayer({
           id: "mood-points",
           type: "circle",
           source: "moods",
+          filter: ["!has", "point_count"],
           paint: {
             "circle-radius": 10,
             "circle-color": [
@@ -103,8 +152,8 @@ export default function Map({ moods }: MapProps) {
       map.current?.once("style.load", addSourceAndLayer);
     }
 
-    // Popup on click
-    const onClick = (e: mapboxgl.MapLayerMouseEvent) => {
+    // Popup for unclustered points
+    const onPointClick = (e: mapboxgl.MapLayerMouseEvent) => {
       const feature = e.features && e.features[0];
       if (!feature) return;
       const { mood, timestamp } = feature.properties as any;
@@ -118,11 +167,33 @@ export default function Map({ moods }: MapProps) {
         )
         .addTo(map.current!);
     };
-    map.current.on("click", "mood-points", onClick);
+    map.current.on("click", "mood-points", onPointClick);
+
+    // Zoom into cluster on click
+    const onClusterClick = (e: mapboxgl.MapLayerMouseEvent) => {
+      const features = map.current?.queryRenderedFeatures(e.point, {
+        layers: ["clusters"],
+      });
+      if (!features || !features.length) return;
+      const clusterId = features[0].properties?.cluster_id;
+      (
+        map.current?.getSource("moods") as mapboxgl.GeoJSONSource
+      ).getClusterExpansionZoom(clusterId, (err, zoom) => {
+        if (err) return;
+        if (typeof zoom === "number") {
+          map.current?.easeTo({
+            center: (features[0].geometry as any).coordinates,
+            zoom,
+          });
+        }
+      });
+    };
+    map.current.on("click", "clusters", onClusterClick);
 
     return () => {
       if (!map.current) return;
-      map.current.off("click", "mood-points", onClick);
+      map.current.off("click", "mood-points", onPointClick);
+      map.current.off("click", "clusters", onClusterClick);
       // Optionally remove layer/source if needed
     };
   }, [moods]);

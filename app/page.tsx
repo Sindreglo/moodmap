@@ -5,9 +5,10 @@ import styles from "./page.module.scss";
 import { useState } from "react";
 import { mockMoods } from "@/mocks/mockMoods";
 import type { Mood } from "@/types/interfaces/Mood";
+import { randomlyGeneratedMockMoods } from "@/mocks/randomlyGeneratedMockMoods";
 
 export default function Home() {
-  const [moods, setMoods] = useState<Mood[]>(mockMoods);
+  const [moods, setMoods] = useState<Mood[]>(randomlyGeneratedMockMoods);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleAddMood = (mood: number, lat: number, lng: number) => {
